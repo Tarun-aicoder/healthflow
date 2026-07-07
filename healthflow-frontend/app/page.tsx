@@ -125,7 +125,7 @@ export default function Dashboard() {
     {/* Schedule */}
     <div className="absolute -top-17 left-1/2 -translate-x-1/2 flex items-center gap-1 text-xs font-semibold text-blue-400">
       <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-      <span>Schedule</span>
+      <span>Schedule </span>
     </div>
 
     {/* Risk */}
