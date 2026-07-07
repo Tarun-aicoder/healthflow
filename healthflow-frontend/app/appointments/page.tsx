@@ -5,8 +5,7 @@ import { ShieldAlert, Check, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState([]);
-  const [resolved, setResolved] = useState<string[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
   const { toast } = useToast();
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -18,10 +17,29 @@ export default function AppointmentsPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const handleApprove = async (id: string, revenue: number) => {
+  const handleApprove = async (id: string, revenue: number, actionText: string) => {
     const res = await fetch(`${apiBase}/approve/${id}`, { method: 'POST' });
+    
     if (res.ok) {
-      setResolved([...resolved, id]);
+      // Extract the new patient's name from Gemini's suggested action string
+      // e.g., "Replace Rahul Sharma with Priya Singh from the waitlist" -> "Priya Singh"
+      const match = actionText.match(/with (.*?) from/);
+      const newPatientName = match ? match[1] : "Waitlist Patient";
+
+      // Instantly swap the patient in the UI and update the risk profile
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === id
+            ? {
+                ...apt,
+                patient_name: newPatientName,
+                risk_profile: "Low Risk",
+                recommendation: null // Clears the AI suggestion box
+              }
+            : apt
+        )
+      );
+
       toast({
         title: "✅ Optimization Successful",
         description: `Waitlist activated. $${revenue} revenue recovered.`,
@@ -39,29 +57,42 @@ export default function AppointmentsPage() {
 
       <div className="space-y-4">
         {appointments.map((apt: any) => {
-          const isApproved = resolved.includes(apt.id);
+          const isSecured = apt.risk_profile === "Low Risk";
+
           return (
             <div key={apt.id} className="glass-panel rounded-2xl overflow-hidden grid md:grid-cols-[0.9fr_1.1fr]">
+              {/* Left Side: Patient Info */}
               <div className="p-5 border-b md:border-b-0 md:border-r border-zinc-800">
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-red-950/60 border border-red-900 text-red-400 inline-flex items-center gap-1.5 mb-3">
-                  <ShieldAlert className="w-3.5 h-3.5" /> High Risk Profile
-                </span>
+                {isSecured ? (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-950/60 border border-emerald-900 text-emerald-400 inline-flex items-center gap-1.5 mb-3 transition-all">
+                    <Check className="w-3.5 h-3.5" /> Secured Slot
+                  </span>
+                ) : (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-red-950/60 border border-red-900 text-red-400 inline-flex items-center gap-1.5 mb-3 transition-all">
+                    <ShieldAlert className="w-3.5 h-3.5" /> High Risk Profile
+                  </span>
+                )}
                 <h3 className="text-lg font-bold text-white">{apt.patient_name}</h3>
                 <p className="text-xs text-zinc-400 mt-1">{apt.appointment_time} • {apt.department}</p>
               </div>
 
-              <div className="p-5 bg-zinc-900/20 flex flex-col justify-center">
-                {isApproved ? (
-                  <div className="text-center py-4 text-emerald-400 font-medium flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 bg-emerald-950 rounded-full flex items-center justify-center border border-emerald-800"><Check className="w-4 h-4" /></div>
-                    Slot Reallocated Successfully
+              {/* Right Side: AI Action Hub */}
+              <div className="p-5 bg-zinc-900/20 flex flex-col justify-center min-h-[140px]">
+                {isSecured ? (
+                  <div className="text-center py-4 text-emerald-400 font-medium flex flex-col items-center gap-2 animate-in fade-in duration-500">
+                    <div className="w-8 h-8 bg-emerald-950 rounded-full flex items-center justify-center border border-emerald-800">
+                      <Check className="w-4 h-4" />
+                    </div>
+                    Waitlist Reassignment Complete
                   </div>
                 ) : apt.recommendation ? (
                   <>
-                    <div className="text-xs font-semibold text-indigo-400 flex items-center gap-1.5 mb-2"><Sparkles className="w-3.5 h-3.5" /> Copilot Recommendation</div>
+                    <div className="text-xs font-semibold text-indigo-400 flex items-center gap-1.5 mb-2">
+                      <Sparkles className="w-3.5 h-3.5" /> Copilot Recommendation
+                    </div>
                     <div className="text-[10px] uppercase tracking-wider text-emerald-400 mb-3">
-  Generated by Gemini AI
-</div>
+                      Generated by Gemini AI
+                    </div>
                     <p className="text-sm text-zinc-200">{apt.recommendation.risk_explanation}</p>
                     
                     <div className="mt-3 p-3 bg-indigo-950/30 border border-indigo-900/50 rounded-xl">
@@ -70,7 +101,7 @@ export default function AppointmentsPage() {
                     </div>
 
                     <button 
-                      onClick={() => handleApprove(apt.id, apt.recommendation.revenue_impact)} 
+                      onClick={() => handleApprove(apt.id, apt.recommendation.revenue_impact, apt.recommendation.recommended_action)} 
                       className="mt-4 w-full bg-white hover:bg-zinc-200 py-2 rounded-xl text-xs font-bold text-black transition-all"
                     >
                       Approve Reassignment
